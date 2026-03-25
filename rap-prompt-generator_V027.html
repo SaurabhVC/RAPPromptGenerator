@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAP Prompt Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #EEECE2;
+    --bg-card: #FFFFFF;
+    --bg-card-hover: #F5F3ED;
+    --bg-input: #F5F3ED;
+    --border: #DDD9D0;
+    --border-active: #D97757;
+    --text: #1D1D1B;
+    --text-dim: #7C7B76;
+    --text-bright: #1D1D1B;
+    --accent: #D97757;
+    --accent-glow: rgba(217, 119, 87, 0.1);
+    --accent-green: #5A9A6E;
+    --accent-amber: #C9944A;
+    --accent-purple: #8B6CAE;
+    --accent-rose: #C2615B;
+    --accent-cyan: #4A8FA8;
+    --accent-orange: #D4834E;
+    --radius: 12px;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(217,119,87,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(217,119,87,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none; z-index: 0;
+  }
+  .app { position: relative; z-index: 1; max-width: 1440px; margin: 0 auto; padding: 20px 24px; }
+
+  /* ── HEADER ── */
+  .header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 16px 0 24px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+  .header-icon {
+    width: 46px; height: 46px;
+    background: linear-gradient(135deg, #D97757, #C4613F);
+    border-radius: 12px;
+    display: grid; place-items: center;
+    font-size: 20px; font-weight: 700;
+    font-family: var(--mono); color: #fff;
+    box-shadow: 0 0 24px rgba(217,119,87,0.2);
+    flex-shrink: 0;
+  }
+  .header h1 { font-size: 22px; font-weight: 700; color: var(--text-bright); letter-spacing: -0.5px; }
+  .header p { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+  .header-actions { margin-left: auto; display: flex; gap: 8px; flex-shrink: 0; }
+
+  /* ── FLOW STEPS ── */
+  .flow-indicator {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 20px;
+    font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+  .flow-step {
+    display: flex; align-items: center; gap: 7px;
+    padding: 7px 14px; border-radius: 6px;
+    background: var(--bg-card); border: 1px solid var(--border);
+  }
+  .flow-step.active { border-color: var(--accent); color: var(--accent); background: rgba(217,119,87,0.06); }
+  .flow-step .num {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--border); display: grid; place-items: center;
+    font-size: 10px; font-weight: 700;
+  }
+  .flow-step.active .num { background: var(--accent); color: #fff; }
+  .flow-arrow { color: var(--border); font-size: 16px; }
+
+  /* ── 3-COL GRID ── */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 310px 1fr 1fr;
+    gap: 20px; align-items: start;
+  }
+  @media (max-width: 1200px) {
+    .main-grid { grid-template-columns: 1fr 1fr; }
+    .main-grid > .panel:first-child { grid-column: 1 / -1; }
+  }
+  @media (max-width: 800px) {
+    .main-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ── PANELS ── */
+  .panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    animation: fadeUp 0.4s ease both;
+    box-shadow: 0 1px 3px rgba(29,29,27,0.04), 0 4px 12px rgba(29,29,27,0.03);
+  }
+  .panel:nth-child(2) { animation-delay: 0.08s; }
+  .panel:nth-child(3) { animation-delay: 0.16s; }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .panel-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .panel-header h2 { font-size: 13px; font-weight: 600; color: var(--text-bright); letter-spacing: -0.2px; }
+  .panel-tag {
+    font-family: var(--mono); font-size: 10px; font-weight: 600;
+    padding: 3px 8px; border-radius: 4px; letter-spacing: 0.5px;
+  }
+  .panel-body { padding: 18px; }
+
+  /* ── LEFT: INPUTS ── */
+  .left-panel .panel-body {
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+    scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+  }
+  .input-group { margin-bottom: 16px; }
+  .input-group:last-child { margin-bottom: 0; }
+  .input-label {
+    font-size: 11px; font-weight: 600; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-bottom: 6px; display: block;
+  }
+  .input-field {
+    width: 100%; background: var(--bg-input);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 9px 12px; color: var(--text);
+    font-family: var(--sans); font-size: 13px;
+    transition: border-color 0.2s; outline: none;
+  }
+  .input-field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(217,119,87,0.1); }
+  .input-field::placeholder { color: var(--text-dim); }
+  select.input-field {
+    cursor: pointer; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%237C7B76'%3E%3Cpath d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 12px center;
+  }
+  textarea.input-field { min-height: 64px; resize: vertical; font-size: 12px; line-height: 1.5; }
+  .radio-group { display: flex; flex-direction: column; gap: 6px; }
+  .radio-option {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; background: var(--bg-input);
+    border: 1px solid var(--border); border-radius: 8px;
+    cursor: pointer; transition: all 0.2s; font-size: 12px;
+  }
+  .radio-option:hover { border-color: var(--text-dim); }
+  .radio-option.selected { border-color: var(--accent); background: rgba(217,119,87,0.06); }
+  .radio-dot {
+    width: 15px; height: 15px; border-radius: 50%;
+    border: 2px solid var(--border); position: relative; flex-shrink: 0;
+  }
+  .radio-option.selected .radio-dot { border-color: var(--accent); }
+  .radio-option.selected .radio-dot::after {
+    content: ''; width: 7px; height: 7px;
+    background: var(--accent); border-radius: 50%;
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+  }
+  .radio-desc { font-size: 10px; color: var(--text-dim); margin-top: 1px; }
+
+  /* ── CENTER: FEATURES ── */
+  .center-panel .panel-body {
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+    scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+  }
+  .feature-search { margin-bottom: 14px; position: relative; }
+  .feature-search .input-field { padding-left: 34px; }
+  .feature-search::before {
+    content: '⌕'; position: absolute; left: 11px; top: 50%;
+    transform: translateY(-50%); color: var(--text-dim); font-size: 15px;
+  }
+  .feature-category { margin-bottom: 14px; }
+  .feature-category:last-of-type { margin-bottom: 0; }
+  .category-header {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 8px;
+  }
+  .category-color { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+  .category-name {
+    font-size: 11px; font-weight: 700; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.8px;
+  }
+  .category-count {
+    font-family: var(--mono); font-size: 10px; color: var(--text-dim);
+    margin-left: auto; background: var(--bg-input);
+    padding: 2px 7px; border-radius: 10px;
+  }
+  .cat-toggle-all {
+    font-family: var(--mono); font-size: 10px; color: var(--accent);
+    cursor: pointer; margin-left: 6px;
+    opacity: 0.7; transition: opacity 0.2s;
+  }
+  .cat-toggle-all:hover { opacity: 1; }
+  .feature-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip {
+    font-size: 11px; font-weight: 500;
+    padding: 5px 11px; border-radius: 6px;
+    background: var(--bg-input); border: 1px solid var(--border);
+    cursor: pointer; transition: all 0.2s; user-select: none;
+    position: relative;
+  }
+  .chip:hover { border-color: var(--text-dim); transform: translateY(-1px); }
+  .chip.selected { color: #fff; border-color: transparent; box-shadow: 0 1px 6px rgba(0,0,0,0.1); }
+  .chip.selected.c-blue { background: #D97757; }
+  .chip.selected.c-green { background: #5A9A6E; }
+  .chip.selected.c-purple { background: #8B6CAE; }
+  .chip.selected.c-amber { background: #C9944A; }
+  .chip.selected.c-rose { background: #C2615B; }
+  .chip.selected.c-cyan { background: #4A8FA8; }
+  .chip.selected.c-orange { background: #D4834E; }
+  .selected-summary {
+    font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+    margin-top: 14px; padding: 10px 12px;
+    background: var(--bg-input); border-radius: 6px;
+    border: 1px dashed var(--border);
+  }
+  .selected-summary strong { color: var(--accent); }
+
+  /* ── RIGHT: PROMPT ── */
+  .right-panel .panel-body { display: flex; flex-direction: column; }
+  .prompt-output {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    line-height: 1.75;
+    color: var(--text);
+    min-height: 380px;
+    max-height: calc(100vh - 320px);
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+    flex: 1;
+  }
+  .btn-row { display: flex; gap: 8px; margin-top: 14px; }
+  .btn {
+    flex: 1; padding: 11px; border-radius: 8px;
+    border: 1px solid var(--border); font-family: var(--sans);
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: all 0.2s; text-align: center;
+  }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #C4613F; box-shadow: 0 0 16px rgba(217,119,87,0.2); }
+  .btn-secondary { background: transparent; color: var(--text); }
+  .btn-secondary:hover { background: var(--bg-card-hover); }
+  .btn-danger { background: transparent; color: var(--accent-rose); border-color: rgba(194,97,91,0.3); }
+  .btn-danger:hover { background: rgba(194,97,91,0.06); }
+  .prompt-stats {
+    display: flex; gap: 16px;
+    font-family: var(--mono); font-size: 10px; color: var(--text-dim);
+    margin-top: 10px; padding: 0 2px;
+  }
+  .prompt-stats span strong { color: var(--text); }
+
+  /* ── MODE TOGGLE ── */
+  .mode-toggle {
+    margin-left: auto; flex-shrink: 0; cursor: pointer;
+  }
+  .mode-track {
+    position: relative;
+    display: flex;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .mode-label {
+    position: relative; z-index: 2;
+    padding: 8px 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    color: var(--text-dim);
+    transition: color 0.3s;
+    user-select: none;
+    white-space: nowrap;
+  }
+  .mode-label.active { color: #fff; }
+  .mode-slider {
+    position: absolute;
+    top: 2px; left: 2px;
+    width: calc(50% - 2px);
+    height: calc(100% - 4px);
+    background: var(--accent);
+    border-radius: 6px;
+    transition: transform 0.3s ease;
+    z-index: 1;
+  }
+  .mode-slider.right { transform: translateX(100%); }
+
+  /* ── CHIP TOOLTIP ── */
+  .chip-tooltip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--text-bright);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.5;
+    width: 240px;
+    text-align: center;
+    z-index: 50;
+    pointer-events: none;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  }
+  .chip-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: var(--text-bright);
+  }
+  .chip:hover .chip-tooltip { display: block; }
+  /* Ensure tooltip doesn't overflow left edge */
+  .feature-chips .chip:first-child .chip-tooltip { left: 0; transform: none; }
+  .feature-chips .chip:first-child .chip-tooltip::after { left: 20px; transform: none; }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: #5A9A6E; color: #fff;
+    font-family: var(--sans); font-size: 13px; font-weight: 600;
+    padding: 12px 24px; border-radius: 10px;
+    box-shadow: 0 8px 30px rgba(90,154,110,0.25);
+    opacity: 0; transition: all 0.3s ease; z-index: 100;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-icon">R</div>
+    <div>
+      <h1>RAP Prompt Generator</h1>
+      <p>Generate AI prompts for SAP RAP development — CDS, Behavior, Draft, Fiori Elements & more</p>
+    </div>
+    <div class="mode-toggle" id="modeToggle" onclick="toggleMode()">
+      <div class="mode-track">
+        <span class="mode-label mode-dev active" id="lblDev">Developer</span>
+        <span class="mode-label mode-eu" id="lblEU">End User</span>
+        <div class="mode-slider" id="modeSlider"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FLOW -->
+  <div class="flow-indicator">
+    <div class="flow-step active"><span class="num">1</span> Configure</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step active"><span class="num">2</span> Select Features</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step active"><span class="num">3</span> Generated Prompt</div>
+  </div>
+
+  <!-- 3-COL -->
+  <div class="main-grid">
+
+    <!-- ═══ LEFT ═══ -->
+    <div class="panel left-panel">
+      <div class="panel-header">
+        <h2>⚙ Configuration</h2>
+        <span class="panel-tag" style="background:rgba(217,119,87,0.1);color:var(--accent)">STEP 1</span>
+      </div>
+      <div class="panel-body">
+
+        <div class="input-group">
+          <label class="input-label">Business Object Name</label>
+          <input class="input-field" type="text" id="boName" placeholder="e.g. TravelBooking, SalesOrder" oninput="generatePrompt()">
+        </div>
+        <div class="input-group">
+          <label class="input-label">Namespace / Prefix</label>
+          <input class="input-field" type="text" id="prefix" placeholder="e.g. ZI_, ZC_, ZR_" value="ZI_" oninput="generatePrompt()">
+        </div>
+        <div class="input-group">
+          <label class="input-label">Package</label>
+          <input class="input-field" type="text" id="pkg" placeholder="e.g. ZTRAVEL, $TMP" oninput="generatePrompt()">
+        </div>
+        <div class="input-group">
+          <label class="input-label">Transport Request</label>
+          <input class="input-field" type="text" id="trkorr" placeholder="e.g. DS4K900001 (optional)" oninput="generatePrompt()">
+        </div>
+        <div class="input-group">
+          <label class="input-label">RAP BO Scenario</label>
+          <div class="radio-group" id="scenarioGroup">
+            <div class="radio-option selected" data-val="Managed" onclick="selectRadio(this)">
+              <span class="radio-dot"></span>
+              <div><div>Managed</div><div class="radio-desc">Full framework-managed persistence</div></div>
+            </div>
+            <div class="radio-option" data-val="Unmanaged" onclick="selectRadio(this)">
+              <span class="radio-dot"></span>
+              <div><div>Unmanaged</div><div class="radio-desc">Custom ABAP persistence logic</div></div>
+            </div>
+            <div class="radio-option" data-val="Managed with Additional Save" onclick="selectRadio(this)">
+              <span class="radio-dot"></span>
+              <div><div>Managed + Additional Save</div><div class="radio-desc">Managed with custom save sequence</div></div>
+            </div>
+            <div class="radio-option" data-val="Custom Entity with Query Provider" onclick="selectRadio(this)">
+              <span class="radio-dot"></span>
+              <div><div>Custom Entity + Query</div><div class="radio-desc">Read-only with custom query provider class</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="input-group">
+          <label class="input-label">OData Version / Binding Type</label>
+          <select class="input-field" id="odataVer" onchange="generatePrompt()">
+            <option value="OData V4 — UI Service">OData V4 — UI Service</option>
+            <option value="OData V4 — Web API">OData V4 — Web API</option>
+            <option value="OData V2 — UI Service">OData V2 — UI Service</option>
+            <option value="OData V2 — Web API">OData V2 — Web API</option>
+            <option value="InA (Analytics)">InA (Analytics)</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label class="input-label">DB Table(s) / Data Source</label>
+          <textarea class="input-field" id="tables" placeholder="One per line, e.g.&#10;ztab_travel&#10;ztab_booking" oninput="generatePrompt()"></textarea>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Entity Hierarchy (Root → Children)</label>
+          <textarea class="input-field" id="hierarchy" placeholder="Describe parent-child, e.g.&#10;Travel (root) → Booking (child) → BookingSupplement (grandchild)" oninput="generatePrompt()"></textarea>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Key Fields</label>
+          <input class="input-field" type="text" id="keyFields" placeholder="e.g. travel_id, booking_id" oninput="generatePrompt()">
+        </div>
+        <div class="input-group">
+          <label class="input-label">Description / Additional Context</label>
+          <textarea class="input-field" id="desc" placeholder="Describe what the RAP BO should do, any business rules, etc." oninput="generatePrompt()"></textarea>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ═══ CENTER ═══ -->
+    <div class="panel center-panel">
+      <div class="panel-header">
+        <h2>✦ Feature Selector</h2>
+        <span class="panel-tag" style="background:rgba(90,154,110,0.1);color:var(--accent-green)">STEP 2</span>
+      </div>
+      <div class="panel-body" id="featureBody">
+
+        <div class="feature-search">
+          <input class="input-field" type="text" placeholder="Search features..." id="featureSearch" oninput="filterFeatures()">
+        </div>
+
+        <!-- features injected by JS -->
+        <div id="featureContainer"></div>
+
+        <div class="selected-summary" id="selSummary"></div>
+      </div>
+    </div>
+
+    <!-- ═══ RIGHT ═══ -->
+    <div class="panel right-panel">
+      <div class="panel-header">
+        <h2>⎘ Generated Prompt</h2>
+        <span class="panel-tag" style="background:rgba(139,108,174,0.1);color:var(--accent-purple)">OUTPUT</span>
+      </div>
+      <div class="panel-body">
+        <div class="prompt-output" id="promptOut"></div>
+        <div class="prompt-stats" id="promptStats"></div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="copyPrompt()">📋 Copy Prompt</button>
+          <button class="btn btn-secondary" onclick="selectAllFeatures()">☑ Select All</button>
+          <button class="btn btn-danger" onclick="resetAll()">↻ Reset</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// FEATURE DATA MODEL
+// ══════════════════════════════════════════════════════
+const FEATURES = [
+  {
+    id: 'cds', name: 'CDS Data Model', color: 'blue', dotColor: 'var(--accent)',
+    items: [
+      { id: 'cds_interface', label: 'Interface View Entity', euLabel: 'Main Data Structure', devTooltip: 'Root CDS view entity (ZI_*) defining core data model with keys and associations', euTooltip: 'Defines what information your app stores — the foundation of your application', prompt: 'Create CDS Interface View Entities (ZI_*) as the base data model layer with proper associations and key definitions.' },
+      { id: 'cds_consumption', label: 'Consumption View (Projection)', euLabel: 'Screen Data View', devTooltip: 'Projected CDS view (ZC_*) tailored for UI or API with @Metadata.allowExtensions', euTooltip: 'Controls which fields users actually see on screen versus what\'s stored behind the scenes', prompt: 'Create CDS Consumption/Projection Views (ZC_*) that project the interface views for specific use cases (UI, API) with @Metadata.allowExtensions.' },
+      { id: 'cds_abstract', label: 'Abstract Entity', euLabel: 'Popup Input Form', devTooltip: 'Non-persisted CDS entity used as action input/output parameter structure', euTooltip: 'Temporary form that collects extra info from users when they click an action button', prompt: 'Create Abstract CDS Entities for action parameters (input/output structures) that are not persisted.' },
+      { id: 'cds_custom', label: 'Custom Entity', euLabel: 'External Data Source', devTooltip: 'CDS entity with query provider class for non-standard data sources', euTooltip: 'Pulls read-only data from legacy tables, external systems, or custom calculations', prompt: 'Create Custom CDS Entities with @ObjectModel.query.implementedBy annotations pointing to a custom ABAP query provider class.' },
+      { id: 'cds_composition', label: 'Composition (Parent-Child)', euLabel: 'Parent-Child Records', devTooltip: 'CDS composition [0..*] defining parent-child BO hierarchies', euTooltip: 'Links related records together — like an order with its line items', prompt: 'Implement CDS Compositions to define parent-child hierarchies (composition [0..*] of child, association to parent) for deep BO structures.' },
+      { id: 'cds_assoc', label: 'Associations', euLabel: 'Data Connections', devTooltip: 'CDS associations for navigation, value helps, and text lookups', euTooltip: 'Links between data — like connecting a customer ID to their full name', prompt: 'Define CDS Associations (association [1..1], [0..*]) to related entities for navigation, value helps, and text lookups.' },
+      { id: 'cds_virtual', label: 'Virtual Elements', euLabel: 'Calculated Fields', devTooltip: 'Computed fields via if_sadl_exit_calc_element_read, not stored in DB', euTooltip: 'Values computed on the fly — like total price = quantity × unit price', prompt: 'Add Virtual Elements in CDS views with @ObjectModel.virtualElementCalculatedBy pointing to an ABAP class implementing if_sadl_exit_calc_element_read.' },
+    ]
+  },
+  {
+    id: 'annot', name: 'CDS Annotations', color: 'purple', dotColor: 'var(--accent-purple)',
+    items: [
+      { id: 'ann_ui', label: '@UI Annotations', euLabel: 'Screen Layout', devTooltip: '@UI.headerInfo, @UI.lineItem, @UI.facet, @UI.selectionField for Fiori rendering', euTooltip: 'Controls where fields appear — in the table, header, detail page, or filter bar', prompt: 'Add comprehensive @UI annotations: @UI.headerInfo, @UI.lineItem, @UI.identification, @UI.fieldGroup, @UI.facet, @UI.selectionField for Fiori Elements rendering.' },
+      { id: 'ann_search', label: '@Search Annotations', euLabel: 'Global Search', devTooltip: '@Search.searchable and @Search.defaultSearchElement for fuzzy search', euTooltip: 'Type a keyword and find matching records across multiple fields instantly', prompt: 'Add @Search.searchable and @Search.defaultSearchElement annotations to enable fuzzy search and free-text search in Fiori apps.' },
+      { id: 'ann_objmodel', label: '@ObjectModel', euLabel: 'Data Relationships', devTooltip: '@ObjectModel for semantics, foreign keys, text associations, transactional config', euTooltip: 'Tells the system which fields are IDs, descriptions, or keys', prompt: 'Add @ObjectModel annotations for semantics, foreign keys, text associations, result set size, and transactional processing configuration.' },
+      { id: 'ann_analytics', label: '@Analytics', euLabel: 'Charts & Reporting', devTooltip: '@Analytics.dataCategory, @Aggregation.default for cube/dimension modeling', euTooltip: 'Enables sum, count, average calculations and chart-based dashboards', prompt: 'Add @Analytics.dataCategory, @Analytics.query, @Aggregation.default annotations for analytical CDS views and cube/dimension modeling.' },
+      { id: 'ann_odata', label: '@OData Annotations', euLabel: 'API Settings', devTooltip: '@OData.publish and @OData.entityType.name for exposure control', euTooltip: 'Controls how external systems and apps connect to this data', prompt: 'Add @OData.publish and @OData.entityType.name annotations for OData exposure control and entity naming.' },
+      { id: 'ann_vh', label: '@Consumption.valueHelp', euLabel: 'Dropdown Lists', devTooltip: '@Consumption.valueHelpDefinition with additionalBinding for cascading filters', euTooltip: 'Search helps that appear when users click a field — like country or status pickers', prompt: 'Add @Consumption.valueHelpDefinition annotations linking fields to value help provider CDS views with additionalBinding for cascading filters.' },
+      { id: 'ann_semantics', label: '@Semantics', euLabel: 'Field Meanings', devTooltip: '@Semantics.amount.currencyCode, @Semantics.quantity.unitOfMeasure', euTooltip: 'Tells the system a field is a currency, date, quantity, or user name', prompt: 'Add @Semantics annotations for field-level semantics: @Semantics.amount.currencyCode, @Semantics.quantity.unitOfMeasure, @Semantics.user.createdBy, @Semantics.systemDateTime.' },
+    ]
+  },
+  {
+    id: 'bdef', name: 'Behavior Definition', color: 'green', dotColor: 'var(--accent-green)',
+    items: [
+      { id: 'bdef_crud', label: 'Standard CRUD', euLabel: 'Create / Edit / Delete', devTooltip: 'Enable create, update, delete operations in the behavior definition', euTooltip: 'Users can create new records, edit existing ones, and delete them', prompt: 'Enable standard operations: create, update, delete (and read for unmanaged) in the behavior definition.' },
+      { id: 'bdef_inst_action', label: 'Instance Actions', euLabel: 'Record Buttons', devTooltip: 'action with parameter and result, handler method implementation', euTooltip: 'Buttons like "Approve", "Reject", or "Submit" that act on one specific record', prompt: 'Define instance actions (action actionName parameter inputParam result [1] $self) with corresponding handler method implementations in the behavior pool.' },
+      { id: 'bdef_static_action', label: 'Static Actions', euLabel: 'Global Buttons', devTooltip: 'static action operating without instance context', euTooltip: 'Actions that don\'t need a record — like "Generate Report" or "Mass Upload"', prompt: 'Define static actions (static action actionName) that operate without a specific instance context.' },
+      { id: 'bdef_factory_action', label: 'Factory Actions', euLabel: 'Copy / Template', devTooltip: 'factory action createByTemplate [1] for copy-create patterns', euTooltip: 'Create a new record by copying from an existing one as a template', prompt: 'Define factory actions (factory action createByTemplate [1]) for creating new instances from existing ones.' },
+      { id: 'bdef_determination', label: 'Determinations', euLabel: 'Auto-Fill Rules', devTooltip: 'determination on modify/save for automatic field calculations', euTooltip: 'Fields that populate automatically — like default dates, totals, or status', prompt: 'Implement determinations (determination det_name on modify/save { field field1, field2; }) for automatic field calculations and derived data.' },
+      { id: 'bdef_validation', label: 'Validations', euLabel: 'Data Checks', devTooltip: 'validation on save with failed/reported messages', euTooltip: 'Rules preventing bad data — like "end date must be after start date"', prompt: 'Implement validations (validation val_name on save { field field1; }) for business rule checks with messages reported via failed/reported.' },
+      { id: 'bdef_feat_ctrl', label: 'Feature Control (Dynamic)', euLabel: 'Smart Forms', devTooltip: 'Dynamic instance feature control based on entity state', euTooltip: 'Fields and buttons that enable or disable based on record status', prompt: 'Implement dynamic feature control to enable/disable fields and operations based on instance state (e.g. disable edit after approval).' },
+      { id: 'bdef_auth', label: 'Authorization Control', euLabel: 'Access Control', devTooltip: 'Global and instance-level authorization with handler methods', euTooltip: 'Restricts who can view, edit, or approve records based on their role', prompt: 'Implement authorization control (global and instance-level) with authorization master/dependent and corresponding handler methods checking user permissions.' },
+      { id: 'bdef_numbering', label: 'Numbering (Early/Late)', euLabel: 'Auto-Numbering', devTooltip: 'Early or late numbering for key fields via adjust_numbers', euTooltip: 'System generates unique IDs automatically — like order or request numbers', prompt: 'Implement early or late numbering for key fields. Early: keys assigned during create. Late: keys assigned during save (adjust_numbers method).' },
+      { id: 'bdef_side_effects', label: 'Side Effects', euLabel: 'Live Updates', devTooltip: 'side effects { field affects field } triggering UI re-reads', euTooltip: 'Change one field and related fields refresh instantly on screen', prompt: 'Define side effects (side effects { field field1 affects field field2; }) to trigger UI re-reads when specific fields change.' },
+      { id: 'bdef_mapping', label: 'Field Mapping', euLabel: 'Field Linking', devTooltip: 'mapping { EntityField = db_field } for CDS-to-DB column mapping', euTooltip: 'Connects what you see on screen to where data is stored in the database', prompt: 'Add field mapping { EntityField = db_field; } in the behavior definition to map CDS view fields to database table columns.' },
+      { id: 'bdef_precheck', label: 'Precheck (on modify)', euLabel: 'Pre-Validation', devTooltip: 'Precheck methods validating preconditions before action execution', euTooltip: 'Checks conditions before running an action — like "is this record ready?"', prompt: 'Implement precheck methods for actions to validate preconditions before the action is executed.' },
+    ]
+  },
+  {
+    id: 'draft', name: 'Draft Handling', color: 'amber', dotColor: 'var(--accent-amber)',
+    items: [
+      { id: 'draft_enable', label: 'Draft Enabled (with draft table)', euLabel: 'Save as Draft', devTooltip: 'with draft; in BDEF with draft tables (suffix _D) per entity', euTooltip: 'Save incomplete work and come back to finish it later', prompt: 'Enable draft handling with "with draft;" in the behavior definition. Generate/specify draft tables (suffix _D) for each entity in the composition.' },
+      { id: 'draft_actions', label: 'Draft Actions (Edit/Activate/Discard)', euLabel: 'Draft Buttons', devTooltip: 'draft action Edit, Resume, Activate, Discard lifecycle', euTooltip: 'Edit to start changes, Save to finalize, Discard to throw away', prompt: 'Include standard draft actions: draft action Edit, draft action Resume, draft action Activate, and draft action Discard.' },
+      { id: 'draft_det', label: 'Draft Determinations', euLabel: 'Auto-Checks', devTooltip: 'draft determine action Prepare during draft-to-active transition', euTooltip: 'System validates your draft automatically before making it final', prompt: 'Define draft determine action Prepare for executing validations/determinations during draft-to-active transition.' },
+      { id: 'draft_val', label: 'Draft Validations', euLabel: 'Early Warnings', devTooltip: 'Validations during draft Prepare phase for early user feedback', euTooltip: 'Shows errors while you\'re still editing, before you try to save', prompt: 'Configure validations to run during draft Prepare phase to give users early feedback before activation.' },
+      { id: 'draft_etag', label: 'Total ETag (Concurrency)', euLabel: 'Conflict Prevention', devTooltip: 'total etag on timestamp for optimistic concurrency control', euTooltip: 'Stops two people from overwriting each other\'s changes', prompt: 'Define total etag on a timestamp/field for optimistic concurrency control on the draft root entity.' },
+      { id: 'draft_lock', label: 'Lock Master / Dependent', euLabel: 'Record Locking', devTooltip: 'lock master on root, lock dependent on children', euTooltip: 'When someone edits a record, others see it\'s locked until they finish', prompt: 'Configure lock master on the root entity and lock dependent on child entities for proper pessimistic locking.' },
+    ]
+  },
+  {
+    id: 'svc', name: 'Service Layer', color: 'rose', dotColor: 'var(--accent-rose)',
+    items: [
+      { id: 'svc_def', label: 'Service Definition', euLabel: 'Data Contract', devTooltip: 'Service Definition (ZSD_*) exposing consumption views', euTooltip: 'Defines exactly what data the app makes available', prompt: 'Create a Service Definition (ZSD_*) exposing the consumption views and relevant associated entities.' },
+      { id: 'svc_bind_ui', label: 'Service Binding (UI)', euLabel: 'App Connection', devTooltip: 'OData V4 - UI Binding for Fiori Elements with preview', euTooltip: 'Connects your data to the Fiori app that users interact with', prompt: 'Create a Service Binding (ZSRV_*) of type OData V4 - UI for Fiori Elements consumption with preview capability.' },
+      { id: 'svc_bind_api', label: 'Service Binding (Web API)', euLabel: 'External Access', devTooltip: 'OData V4 - Web API for headless/programmatic access', euTooltip: 'Allows other systems or tools to read and write this data', prompt: 'Create a Service Binding of type OData V4 - Web API for headless/programmatic access and integration scenarios.' },
+      { id: 'svc_events', label: 'Business Events (RAP Events)', euLabel: 'Notifications', devTooltip: 'RAP Business Events raised in handlers for integration', euTooltip: 'Triggers alerts or follow-ups when something happens — like "order approved"', prompt: 'Define RAP Business Events (event entityCreated, event entityApproved) raised in handler methods for event-driven integration.' },
+    ]
+  },
+  {
+    id: 'fiori', name: 'Fiori Elements Floorplan', color: 'cyan', dotColor: 'var(--accent-cyan)',
+    items: [
+      { id: 'fiori_lr', label: 'List Report', euLabel: 'Table View', devTooltip: 'Fiori Elements List Report with selectionField, lineItem, variants', euTooltip: 'Searchable, filterable list of all records with customizable columns', prompt: 'Configure Fiori Elements List Report floorplan with @UI.selectionField for filter bar, @UI.lineItem for table columns, variant management, and table type.' },
+      { id: 'fiori_op', label: 'Object Page', euLabel: 'Detail Page', devTooltip: 'Fiori Elements Object Page with headerInfo, facets, fieldGroups', euTooltip: 'Shows all information about one record organized in tabs and sections', prompt: 'Configure Fiori Elements Object Page with @UI.headerInfo, @UI.facet for sections/tabs, @UI.fieldGroup for form fields, and @UI.identification for actions.' },
+      { id: 'fiori_ovp', label: 'Overview Page', euLabel: 'Dashboard', devTooltip: 'OVP with card-based KPI, chart, and list cards', euTooltip: 'Summary page with key numbers, charts, and quick-access lists', prompt: 'Configure annotations for Overview Page floorplan with card-based layout for KPIs, charts, and list cards.' },
+      { id: 'fiori_alp', label: 'Analytical List Page', euLabel: 'Analytics View', devTooltip: 'ALP with visual filters, chart/table hybrid, KPI tags', euTooltip: 'Combines tables with charts for data analysis and drill-down', prompt: 'Configure Analytical List Page with @Analytics annotations, visual filters, chart/table hybrid views, and KPI tags.' },
+      { id: 'fiori_wl', label: 'Worklist', euLabel: 'Task List', devTooltip: 'Simplified list without filter bar for task-based processing', euTooltip: 'Focused list of items assigned to you that need action', prompt: 'Configure Worklist floorplan as a simplified list without filter bar, optimized for task-based processing flows.' },
+    ]
+  },
+  {
+    id: 'adv', name: 'Advanced Patterns', color: 'orange', dotColor: 'var(--accent-orange)',
+    items: [
+      { id: 'adv_singleton', label: 'Singleton BO', euLabel: 'Settings Page', devTooltip: 'define behavior as singleton for single-instance config entities', euTooltip: 'A single configuration screen — like app preferences or system settings', prompt: 'Implement the Singleton Business Object pattern for settings/configuration entities with a single instance (define behavior for ... as singleton).' },
+      { id: 'adv_vh_dynamic', label: 'Dynamic Value Helps', euLabel: 'Smart Dropdowns', devTooltip: 'CDS value help views with additionalBinding for cascading filters', euTooltip: 'Dropdown options that change based on what you selected in another field', prompt: 'Create dedicated CDS value help provider views with @ObjectModel.resultSet.sizeCategory and additionalBinding for context-dependent filtering.' },
+      { id: 'adv_text', label: 'Text Associations (I18N)', euLabel: 'Multi-Language', devTooltip: 'association to text entity on language = $session.system_language', euTooltip: 'Labels and descriptions automatically appear in the user\'s language', prompt: 'Define text associations (association to text entity on language = $session.system_language) and @ObjectModel.text.association for language-dependent descriptions.' },
+      { id: 'adv_tree', label: 'Tree / Hierarchy Display', euLabel: 'Tree View', devTooltip: '@OData.hierarchy.recursiveHierarchy with self-associations', euTooltip: 'Expandable nested structure — like org charts or folder trees', prompt: 'Implement CDS hierarchy annotations (@OData.hierarchy.recursiveHierarchy) for tree-based Fiori display with parent-child self-associations.' },
+      { id: 'adv_etag', label: 'ETag Handling (Master/Dependent)', euLabel: 'Version Tracking', devTooltip: 'etag master on root, etag dependent by _Parent on children', euTooltip: 'Ensures you\'re always editing the latest version of a record', prompt: 'Define ETags for optimistic concurrency: etag master field on root, etag dependent by _Parent on children.' },
+      { id: 'adv_strict', label: 'Strict Mode (1 / 2)', euLabel: 'Quality Standards', devTooltip: 'with strict(2) for enhanced RAP checks and Cloud compliance', euTooltip: 'Ensures the app follows SAP\'s latest coding and design standards', prompt: 'Enable strict mode ( with strict (2) ) in the behavior definition for enhanced RAP checks and clean ABAP compliance.' },
+      { id: 'adv_field_map', label: 'Alias / Field Rewriting', euLabel: 'Friendly Names', devTooltip: 'CDS field aliases mapping technical DB names to business names', euTooltip: 'Translates database column names into readable labels', prompt: 'Use CDS field aliases and path expressions to reshape the data model, mapping technical DB names to business-friendly names.' },
+      { id: 'adv_extensibility', label: 'Extensibility Annotations', euLabel: 'Customization-Ready', devTooltip: '@AbapCatalog.extensibility for key user and developer extensions', euTooltip: 'Allows future modifications without changing the core app', prompt: 'Add @AbapCatalog.extensibility annotations for released APIs allowing key user and developer extensibility of the BO.' },
+      { id: 'adv_assoc_filter', label: 'Association with Filter', euLabel: 'Pre-Filtered Links', devTooltip: 'Associations with default filter (where status = \'A\')', euTooltip: 'Related data automatically shows only relevant records — like only active items', prompt: 'Define associations with default filter conditions (association [0..*] of ... on ... where status = \'A\') for pre-filtered navigations.' },
+    ]
+  }
+];
+
+// ══════════════════════════════════════════════════════
+// MODE STATE
+// ══════════════════════════════════════════════════════
+let currentMode = 'dev'; // 'dev' or 'eu'
+
+function toggleMode() {
+  currentMode = currentMode === 'dev' ? 'eu' : 'dev';
+  const slider = document.getElementById('modeSlider');
+  const lblDev = document.getElementById('lblDev');
+  const lblEU = document.getElementById('lblEU');
+
+  if (currentMode === 'eu') {
+    slider.classList.add('right');
+    lblDev.classList.remove('active');
+    lblEU.classList.add('active');
+  } else {
+    slider.classList.remove('right');
+    lblDev.classList.add('active');
+    lblEU.classList.remove('active');
+  }
+
+  // Remember selected chip IDs
+  const selectedIds = new Set();
+  document.querySelectorAll('.chip.selected').forEach(c => selectedIds.add(c.dataset.id));
+
+  // Re-render with new mode
+  renderFeatures(selectedIds);
+  showToast(currentMode === 'eu' ? '👤 End User mode' : '⚙ Developer mode');
+}
+
+// ══════════════════════════════════════════════════════
+// RENDER FEATURES
+// ══════════════════════════════════════════════════════
+function renderFeatures(preserveSelected) {
+  const container = document.getElementById('featureContainer');
+  container.innerHTML = '';
+  const isEU = currentMode === 'eu';
+
+  FEATURES.forEach(cat => {
+    const div = document.createElement('div');
+    div.className = 'feature-category';
+    div.dataset.cat = cat.id;
+
+    const chipsHtml = cat.items.map(f => {
+      const chipLabel = isEU ? f.euLabel : f.label;
+      const tooltip = isEU ? f.euTooltip : f.devTooltip;
+      const isSelected = preserveSelected && preserveSelected.has(f.id) ? ' selected' : '';
+      return `<span class="chip c-${cat.color}${isSelected}" data-id="${f.id}" data-cat="${cat.id}" onclick="toggleChip(this)">
+        ${chipLabel}
+        <span class="chip-tooltip">${tooltip}</span>
+      </span>`;
+    }).join('');
+
+    div.innerHTML = `
+      <div class="category-header">
+        <span class="category-color" style="background:${cat.dotColor}"></span>
+        <span class="category-name">${cat.name}</span>
+        <span class="cat-toggle-all" onclick="toggleCategory('${cat.id}')">[all]</span>
+        <span class="category-count">${cat.items.length}</span>
+      </div>
+      <div class="feature-chips">${chipsHtml}</div>
+    `;
+    container.appendChild(div);
+  });
+  updateSummary();
+  generatePrompt();
+}
+
+// ══════════════════════════════════════════════════════
+// INTERACTIONS
+// ══════════════════════════════════════════════════════
+function selectRadio(el) {
+  el.parentElement.querySelectorAll('.radio-option').forEach(r => r.classList.remove('selected'));
+  el.classList.add('selected');
+  generatePrompt();
+}
+
+function toggleChip(el) {
+  el.classList.toggle('selected');
+  updateSummary();
+  generatePrompt();
+}
+
+function toggleCategory(catId) {
+  const chips = document.querySelectorAll(`.chip[data-cat="${catId}"]`);
+  const allSelected = [...chips].every(c => c.classList.contains('selected'));
+  chips.forEach(c => {
+    if (allSelected) c.classList.remove('selected');
+    else c.classList.add('selected');
+  });
+  updateSummary();
+  generatePrompt();
+}
+
+function selectAllFeatures() {
+  document.querySelectorAll('.chip').forEach(c => c.classList.add('selected'));
+  updateSummary();
+  generatePrompt();
+  showToast('All features selected');
+}
+
+function resetAll() {
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+  document.querySelectorAll('.input-field').forEach(f => {
+    if (f.id === 'prefix') f.value = 'ZI_';
+    else if (f.tagName === 'SELECT') f.selectedIndex = 0;
+    else f.value = '';
+  });
+  document.querySelectorAll('.radio-option').forEach(r => r.classList.remove('selected'));
+  document.querySelector('.radio-option[data-val="Managed"]').classList.add('selected');
+  updateSummary();
+  generatePrompt();
+  showToast('Reset complete');
+}
+
+function updateSummary() {
+  const sel = document.querySelectorAll('.chip.selected').length;
+  const total = document.querySelectorAll('.chip').length;
+  const cats = new Set();
+  document.querySelectorAll('.chip.selected').forEach(c => cats.add(c.dataset.cat));
+  document.getElementById('selSummary').innerHTML =
+    `<strong>${sel}</strong> of ${total} features selected across <strong>${cats.size}</strong> ${cats.size === 1 ? 'category' : 'categories'}`;
+}
+
+function filterFeatures() {
+  const q = document.getElementById('featureSearch').value.toLowerCase();
+  document.querySelectorAll('.chip').forEach(chip => {
+    const fid = chip.dataset.id;
+    let matchText = '';
+    for (const cat of FEATURES) {
+      const found = cat.items.find(f => f.id === fid);
+      if (found) { matchText = (found.label + ' ' + found.euLabel + ' ' + found.euTooltip).toLowerCase(); break; }
+    }
+    chip.style.display = matchText.includes(q) ? '' : 'none';
+  });
+  document.querySelectorAll('.feature-category').forEach(cat => {
+    const vis = cat.querySelectorAll('.chip:not([style*="display: none"])').length;
+    cat.style.display = vis ? '' : 'none';
+  });
+}
+
+// ══════════════════════════════════════════════════════
+// PROMPT GENERATION ENGINE
+// ══════════════════════════════════════════════════════
+function getVal(id) { return document.getElementById(id)?.value?.trim() || ''; }
+
+function getScenario() {
+  const sel = document.querySelector('#scenarioGroup .radio-option.selected');
+  return sel ? sel.dataset.val : 'Managed';
+}
+
+function getSelectedFeatures() {
+  const selected = [];
+  document.querySelectorAll('.chip.selected').forEach(chip => {
+    const fid = chip.dataset.id;
+    for (const cat of FEATURES) {
+      const found = cat.items.find(f => f.id === fid);
+      if (found) { selected.push({ ...found, category: cat.name, catId: cat.id }); break; }
+    }
+  });
+  return selected;
+}
+
+function generatePrompt() {
+  const boName = getVal('boName');
+  const prefix = getVal('prefix');
+  const pkg = getVal('pkg');
+  const trkorr = getVal('trkorr');
+  const scenario = getScenario();
+  const odata = getVal('odataVer');
+  const tables = getVal('tables');
+  const hierarchy = getVal('hierarchy');
+  const keyFields = getVal('keyFields');
+  const desc = getVal('desc');
+  const features = getSelectedFeatures();
+
+  // Build prompt
+  let p = '';
+
+  // Header
+  p += `Create an SAP RAP Business Object`;
+  if (boName) p += ` named "${prefix}${boName}"`;
+  p += ` using the ${scenario} implementation scenario.\n\n`;
+
+  // Description
+  if (desc) {
+    p += `=== OBJECTIVE ===\n${desc}\n\n`;
+  }
+
+  // Data model config
+  p += `=== CONFIGURATION ===\n`;
+  if (boName) p += `Business Object: ${prefix}${boName}\n`;
+  if (prefix) p += `Naming Prefix: ${prefix} (Interface), ${prefix.replace(/^ZI_/, 'ZC_').replace(/^ZR_/, 'ZC_')} (Consumption)\n`;
+  if (pkg) p += `Package: ${pkg}\n`;
+  if (trkorr) p += `Transport Request: ${trkorr}\n`;
+  p += `RAP Scenario: ${scenario}\n`;
+  p += `Service Binding Type: ${odata}\n`;
+  if (keyFields) p += `Key Fields: ${keyFields}\n`;
+  p += '\n';
+
+  // Tables
+  if (tables) {
+    p += `=== DATA SOURCE ===\n`;
+    const tList = tables.split('\n').filter(t => t.trim());
+    tList.forEach(t => { p += `- Database Table: ${t.trim()}\n`; });
+    p += '\n';
+  }
+
+  // Hierarchy
+  if (hierarchy) {
+    p += `=== ENTITY HIERARCHY ===\n${hierarchy}\n\n`;
+  }
+
+  // Features grouped by category
+  if (features.length > 0) {
+    p += `=== REQUIRED RAP FEATURES ===\n\n`;
+
+    const grouped = {};
+    features.forEach(f => {
+      if (!grouped[f.category]) grouped[f.category] = [];
+      grouped[f.category].push(f);
+    });
+
+    for (const [catName, items] of Object.entries(grouped)) {
+      p += `--- ${catName.toUpperCase()} ---\n`;
+      items.forEach(f => {
+        p += `• ${f.prompt}\n`;
+      });
+      p += '\n';
+    }
+  }
+
+  // Naming conventions
+  if (boName) {
+    p += `=== NAMING CONVENTIONS ===\n`;
+    p += `- Interface CDS View:     ${prefix}${boName}\n`;
+    p += `- Consumption CDS View:   ${prefix.replace(/^ZI_/, 'ZC_').replace(/^ZR_/, 'ZC_')}${boName}\n`;
+    p += `- Behavior Definition:    ${prefix}${boName}\n`;
+    p += `- Behavior Implementation: ZBP_${prefix.replace(/_$/, '').toLowerCase()}_${boName.toLowerCase()}\n`;
+    const svcName = boName.replace(/^(I_|C_|R_)/, '');
+    p += `- Service Definition:     ZSD_${svcName}\n`;
+    p += `- Service Binding:        ZSRV_${svcName}_V4_UI\n`;
+    if (features.some(f => f.id.startsWith('draft_'))) {
+      p += `- Draft Table:            ${prefix.replace(/^Z/, 'Z').replace(/_$/, '')}${boName}_D\n`;
+    }
+    p += '\n';
+  }
+
+  // Instructions
+  p += `=== INSTRUCTIONS ===\n`;
+  p += `1. Generate all CDS view entities with complete field lists and annotations.\n`;
+  p += `2. Generate the Behavior Definition (BDEF) with all specified features.\n`;
+  p += `3. Generate the Behavior Implementation class (handler + saver methods).\n`;
+  p += `4. Generate the Service Definition and describe the Service Binding creation.\n`;
+  if (features.some(f => f.catId === 'fiori')) {
+    p += `5. Include all necessary @UI annotations for the selected Fiori Elements floorplan(s).\n`;
+  }
+  if (scenario === 'Custom Entity with Query Provider') {
+    p += `5. Generate the Query Provider class implementing if_rap_query_provider with full SELECT logic.\n`;
+  }
+  p += `\nProvide complete, working ABAP code for each artifact. Use ABAP for Cloud / ABAP RESTful style. Add inline comments explaining key sections.`;
+
+  // Render
+  document.getElementById('promptOut').textContent = p;
+
+  // Stats
+  const words = p.split(/\s+/).filter(w => w).length;
+  const chars = p.length;
+  const lines = p.split('\n').length;
+  document.getElementById('promptStats').innerHTML =
+    `<span><strong>${words}</strong> words</span>` +
+    `<span><strong>${chars.toLocaleString()}</strong> chars</span>` +
+    `<span><strong>${lines}</strong> lines</span>` +
+    `<span><strong>${features.length}</strong> features</span>`;
+}
+
+// ══════════════════════════════════════════════════════
+// COPY & TOAST
+// ══════════════════════════════════════════════════════
+function copyPrompt() {
+  const text = document.getElementById('promptOut').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('✓ Prompt copied to clipboard!');
+  }).catch(() => {
+    // fallback
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('✓ Prompt copied to clipboard!');
+  });
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ══════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════
+renderFeatures();
+</script>
+</body>
+</html>
